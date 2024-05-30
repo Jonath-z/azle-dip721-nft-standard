@@ -18,11 +18,8 @@ import {
   Result,
   Ok,
   Err,
-  bool,
-  None,
 } from "azle";
 
-const MetadataDesc = Vec(MetadataPart);
 const MetadataVal = Variant({
   TextContent: text,
   BlobContent: blob,
@@ -34,25 +31,32 @@ const MetadataVal = Variant({
 });
 
 const LogoResult = Record({
-  logoType: text,
+  logo_type: text,
   data: text,
 });
 
-const MetadataPart = Record({
-  purpose: MetadataPurpose,
-  keyValData: Map(text, MetadataVal),
-  data: blob,
+const MetadataKeyVal = Record({
+  key: text,
+  val: MetadataVal,
 });
 
-const MetadataPurpose = Record({
-  Preview: text,
-  Rendered: text,
-});
+// enum MetadataPurpose {
+//   Preview = "Preview",
+//   Rendered = "Rendered",
+// }
 
 const MintResult = Record({
   tokenId: nat64,
   id: nat,
 });
+
+const MetadataPart = Record({
+  // purpose: Variant(MetadataPurpose),
+  key_val_data: Vec(MetadataKeyVal),
+  data: blob,
+});
+
+const MetadataDesc = Vec(MetadataPart);
 
 const Error = Variant({
   Unauthorized: text,
@@ -62,8 +66,7 @@ const Error = Variant({
 });
 
 const InitArgs = Record({
-  custodians: Opt(Vec(Principal)),
-  logo: Opt(LogoResult),
+  logo: LogoResult,
   name: text,
   symbol: text,
 });
@@ -73,13 +76,11 @@ const Nft = Record({
   approved: Opt(Principal),
   id: nat64,
   metadata: MetadataDesc,
-  content: blob,
 });
 
 const State = Record({
   nfts: Vec(Nft),
   custodians: Vec(Principal),
-  operators: Map(Principal, Vec(Principal)),
   logo: LogoResult,
   name: text,
   symbol: text,
@@ -89,16 +90,14 @@ const State = Record({
 let state: State = {
   nfts: [],
   custodians: [],
-  operators: ,
   name: "",
   symbol: "",
   txid: 0n,
 };
 
-
 export default Canister({
-  init: init([InitArgs], (args) => {
-    state.custodians = args.custodians || [ic.caller()];
+  init: init([Principal, InitArgs], (custodian, args) => {
+    state.custodians = [custodian];
     state.name = args.name;
     state.symbol = args.symbol;
     state.logo = args.logo;
@@ -120,10 +119,6 @@ export default Canister({
     } else {
       return Err({ InvalidTokenId: "true" });
     }
-  }),
-
-  supportedInterfaces: query([], Vec(text), () => {
-    return ["TransferNotification", "Burn", "Mint"];
   }),
 
   logo: query([], Result(LogoResult, Error), () => {
@@ -161,19 +156,16 @@ export default Canister({
   }),
 
   mint: update(
-    [Principal, MetadataDesc, blob],
+    [Principal, MetadataDesc],
     Result(MintResult, Error),
-    (to, metadata, blobContent) => {
-      if (!state.custodians.has(ic.caller())) {
-        return Err({ Unauthorized: "true" });
-      }
+    (to, metadata) => {
+      console.log({ metadata });
       const newId = BigInt(state.nfts.length);
       const nft = {
         owner: to,
         approved: undefined,
         id: newId,
         metadata,
-        content: blobContent,
       };
       state.nfts.push(nft);
       return Ok({ id: nextTxId(), tokenId: newId });
@@ -200,81 +192,29 @@ export default Canister({
     nft.owner = Principal.anonymous();
     return Ok(nextTxId());
   }),
-
-  setName: update([text], Result(Record({}), Error), (name) => {
-    if (state.custodians.has(ic.caller())) {
-      state.name = name;
-      return Ok({});
-    } else {
-      return Err({ Unauthorized: "true" });
-    }
-  }),
-
-  setSymbol: update([text], Result(Record({}), Error), (symbol) => {
-    if (state.custodians.has(ic.caller())) {
-      state.symbol = symbol;
-      return Ok({});
-    } else {
-      return Err({ Unauthorized: "true" });
-    }
-  }),
-
-  setLogo: update([LogoResult], Result(Record({}), Error), (logo) => {
-    if (state.custodians.has(ic.caller())) {
-      state.logo = logo;
-      return Ok({});
-    } else {
-      return Err({ Unauthorized: "true" });
-    }
-  }),
-
-  setCustodian: update(
-    [Principal, bool],
-    Result(Record({}), Error),
-    (user, custodian) => {
-      if (state.custodians.has(ic.caller())) {
-        if (custodian) {
-          state.custodians.add(user);
-        } else {
-          state.custodians.delete(user);
-        }
-        return Ok({});
-      } else {
-        return Err({ Unauthorized: "true" });
-      }
-    }
-  ),
-
-  isCustodian: query([Principal], bool, (principal) => {
-    return state.custodians.has(principal);
-  }),
 });
 
 function transferFrom(from: Principal, to: Principal, tokenId: nat) {
   const nft = state.nfts[Number(tokenId)];
-  const caller = ic.caller();
+
   if (!nft) {
     return Err({ InvalidTokenId: "true" });
   }
   if (
-    nft.owner.toText() !== caller.toText() &&
-    nft.approved?.toText() !== caller.toText() &&
-    !state.operators.get(from)?.has(caller) &&
-    !state.custodians.has(caller)
+    nft.owner.toText() !== from.toText() &&
+    nft.approved?.toText() !== from.toText()
   ) {
     return Err({ Unauthorized: "true" });
   }
   if (nft.owner.toText() !== from.toText()) {
     return Err({ Other: "true" });
   }
-  nft.approved = undefined;
+  nft.approved = to;
   nft.owner = to;
   return Ok(nextTxId());
 }
 
 function nextTxId(): nat {
-    const txid = state.txid;
-    state.txid += 1n;
-    return txid;
-  }
-  
+  state.txid += 1n;
+  return state.txid;
+}

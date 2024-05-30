@@ -1,6 +1,6 @@
 {
   "canisters": {
-    "dip721_nft_container": {
+    "backend": {
       "type": "custom",
       "main": "src/backend/index.ts",
       "candid": "src/backend/index.did",
