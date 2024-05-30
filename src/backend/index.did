@@ -8,7 +8,6 @@ service: (principal, record {logo:record {data:text; logo_type:text}; name:text;
     name: () -> (text) query;
     ownerOf: (nat64) -> (variant {Ok:principal; Err:variant {ZeroAddress:text; InvalidTokenId:text; Unauthorized:text; Other:text}}) query;
     safeTransferFrom: (principal, principal, nat) -> (variant {Ok:nat; Err:variant {ZeroAddress:text; InvalidTokenId:text; Unauthorized:text; Other:text}});
-    supportedInterfaces: () -> (vec text) query;
     symbol: () -> (text) query;
     totalSupply: () -> (nat64) query;
 }

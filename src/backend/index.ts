@@ -40,18 +40,12 @@ const MetadataKeyVal = Record({
   val: MetadataVal,
 });
 
-// enum MetadataPurpose {
-//   Preview = "Preview",
-//   Rendered = "Rendered",
-// }
-
 const MintResult = Record({
   tokenId: nat64,
   id: nat,
 });
 
 const MetadataPart = Record({
-  // purpose: Variant(MetadataPurpose),
   key_val_data: Vec(MetadataKeyVal),
   data: blob,
 });
